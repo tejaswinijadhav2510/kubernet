@@ -1,0 +1,113 @@
+root@master Downloads]# cat cloud.sh 
+#! bin/bash
+#######################Run on all nodes and master ##################
+yum update -y
+scp /etc/selinux/conf root@node1:/etc/
+
+scp /etc/hosts root@node1:/etc/hosts
+scp /root/Downloads/master.sh root@node1:/root/master.sh
+setenforce 0
+sed -i 's/^SELINUX=.*/SELINUX=permissive/g' /etc/selinux/config
+swapoff -a
+sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+modprobe overlay
+modprobe br_netfilter
+tee /etc/sysctl.d/kubernetes.conf<<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+sysctl --system
+tee /etc/yum.repos.d/kubernetes.repo<<EOF
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+yum clean all &&  yum -y makecache
+yum -y install epel-release git curl wget kubelet kubeadm kubectl --disableexcludes=kubernetes
+systemctl start kubelet
+systemctl enable kubelet
+
+OS=CentOS_7
+VERSION=1.22
+curl -L -o /etc/yum.repos.d/devel:kubic:libcontainers:stable.repo https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/devel:kubic:libcontainers:stable.repo
+curl -L -o /etc/yum.repos.d/devel:kubic:libcontainers:stable:cri-o:$VERSION.repo https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:$VERSION/$OS/devel:kubic:libcontainers:stable:cri-o:$VERSION.repo
+yum remove docker-ce docker-ce-cli containerd.io
+yum install cri-o -y
+systemctl daemon-reload
+systemctl start crio
+systemctl enable crio
+ssh root@node1
+bash node1.sh
+exit
+
+
+
+##########################################################################################on nodes################################
+
+[root@master Downloads]# cat node1.sh 
+#! bin/bash
+setenforce 0
+sed -i 's/^SELINUX=.*/SELINUX=permissive/g' /etc/selinux/config
+swapoff -a
+sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+modprobe overlay
+modprobe br_netfilter
+tee /etc/sysctl.d/kubernetes.conf<<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+sysctl --system
+tee /etc/yum.repos.d/kubernetes.repo<<EOF
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+yum clean all &&  yum -y makecache
+yum -y install epel-release git curl wget kubelet kubeadm kubectl --disableexcludes=kubernetes
+systemctl start kubelet
+systemctl enable kubelet
+
+OS=CentOS_7
+VERSION=1.22
+curl -L -o /etc/yum.repos.d/devel:kubic:libcontainers:stable.repo https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/devel:kubic:libcontainers:stable.repo
+curl -L -o /etc/yum.repos.d/devel:kubic:libcontainers:stable:cri-o:$VERSION.repo https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:$VERSION/$OS/devel:kubic:libcontainers:stable:cri-o:$VERSION.repo
+yum remove docker-ce docker-ce-cli containerd.io
+yum install cri-o -y
+systemctl daemon-reload
+systemctl start crio
+systemctl enable crio
+exit
+#######################################################on only master #######################################
+#! bin/bash
+
+
+
+
+
+################333only run on master #################33
+lsmod | grep br_netfilter
+kubeadm config images pull
+touch join-token
+chown +x join-token
+kubeadm init --pod-network-cidr=10.85.0.0/16 --upload-certs --control-plane-endpoint=master | grep tail -1 join-token
+scp join-token root@node1:/root/join-token
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.24.5/manifests/tigera-operator.yaml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.24.5/manifests/custom-resources.yaml
+ssh root@node1 "./join-token"
+##or only ./join-token###
+exit
+kubectl get node
+#########################################################33
