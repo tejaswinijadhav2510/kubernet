@@ -1,1 +1,1 @@
-# kubernet
+# kubernet script= for kubernet cluster.
