@@ -1,1 +1,1 @@
-to create kubernetive cluster and some command for working on that.
+automation to create kubernetive cluster and some command for working on that.
