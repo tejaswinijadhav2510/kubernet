@@ -94,7 +94,7 @@ exit
 
 
 
-################333only run on master #################33
+################only run on master #################
 lsmod | grep br_netfilter
 kubeadm config images pull
 touch join-token
@@ -110,4 +110,4 @@ ssh root@node1 "./join-token"
 ##or only ./join-token###
 exit
 kubectl get node
-#########################################################33
+#########################################################
